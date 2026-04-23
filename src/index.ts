@@ -1,12 +1,18 @@
-import express, { Request, Response } from "express";
+import express from "express";
+import authRoutes from "./routes/auth.route.js";
+import "dotenv/config";
+import connectDB from "./config/connectDB.js";
 
 const app = express();
-const port = "8000";
 
-app.get("/", (req: Request, res: Response) => {
-  res.send("It works!");
-});
+app.use(express.json());
 
-app.listen(port, () => {
-  console.log(`Example app listening on port ${port}`);
+app.use("/api/auth", authRoutes);
+
+app.listen(process.env.PORT, async () => {
+  await connectDB();
+
+  console.log(
+    `-------------------------------------\nApp running on port ${process.env.PORT}\n-------------------------------------`,
+  );
 });
