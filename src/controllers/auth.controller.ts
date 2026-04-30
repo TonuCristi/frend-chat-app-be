@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import { parseAsync, ZodError } from "zod";
+import jwt from "jsonwebtoken";
+import "dotenv/config";
 
 import { User } from "../models/user.model.js";
 import { registerSchema } from "../schemas/register.schema.js";
@@ -23,17 +25,27 @@ export async function register(req: Request, res: Response) {
 
     const hash = await bcrypt.hash(body.password, salt);
 
-    await User.create({ ...body, password: hash });
+    const newUser = await User.create({ ...body, password: hash });
 
+    const token = jwt.sign({ id: newUser.id }, process.env.JWT_SECRET || "", {
+      expiresIn: 60 * 60 * 24 * 7,
+    });
+
+    res.cookie("authcookie", token, {
+      maxAge: 60 * 60 * 24 * 7,
+      httpOnly: true,
+    });
     res.status(201).json({ message: "Account created successfully!" });
   } catch (error) {
     if (error instanceof ZodError) {
-      return res.status(500).json({ message: error.issues[0].message });
+      return res.status(400).json({ message: error.issues[0].message });
     }
 
     if (error instanceof Error) {
-      return res.status(500).json({ message: error.message });
+      return res.status(409).json({ message: error.message });
     }
+
+    return res.status(500).json({ message: "Something went wrong!" });
   }
 }
 
@@ -42,8 +54,6 @@ export async function login(req: Request, res: Response) {
 
   try {
     const foundUser = await User.findOne({ email: body.email }).lean();
-
-    console.log(foundUser);
 
     if (!foundUser) {
       throw new Error(
