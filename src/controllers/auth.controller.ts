@@ -1,24 +1,51 @@
 import { Request, Response } from "express";
+import bcrypt from "bcryptjs";
+import { parseAsync, ZodError } from "zod";
+import jwt from "jsonwebtoken";
+import "dotenv/config";
 
 import { User } from "../models/user.model.js";
+import { registerSchema } from "../schemas/register.schema.js";
 
 export async function register(req: Request, res: Response) {
   const body = req.body;
 
   try {
-    console.log(body);
+    await registerSchema.parseAsync(body);
 
-    await User.create({
-      fullName: "john",
-      email: "john@mail.com",
-      password: "john2002",
+    const foundUser = await User.findOne({ email: body.email });
+
+    if (foundUser) {
+      throw new Error(
+        "This email is already in use. Please use a different email or log in to your existing account!",
+      );
+    }
+
+    const salt = await bcrypt.genSalt(10);
+
+    const hash = await bcrypt.hash(body.password, salt);
+
+    const newUser = await User.create({ ...body, password: hash });
+
+    const token = jwt.sign({ id: newUser.id }, process.env.JWT_SECRET || "", {
+      expiresIn: 60 * 60 * 24 * 7,
     });
 
+    res.cookie("authcookie", token, {
+      maxAge: 60 * 60 * 24 * 7,
+      httpOnly: true,
+    });
     res.status(201).json({ message: "Account created successfully!" });
   } catch (error) {
-    if (error instanceof Error) {
-      res.status(500).json({ message: error.message });
+    if (error instanceof ZodError) {
+      return res.status(400).json({ message: error.issues[0].message });
     }
+
+    if (error instanceof Error) {
+      return res.status(400).json({ message: error.message });
+    }
+
+    return res.status(500).json({ message: "Something went wrong!" });
   }
 }
 
@@ -26,12 +53,44 @@ export async function login(req: Request, res: Response) {
   const body = req.body;
 
   try {
-    console.log(body);
+    const foundUser = await User.findOne({ email: body.email }).lean();
 
-    res.status(201).json({ message: "Logged in successfully!" });
+    if (!foundUser) {
+      throw new Error(
+        "No account found with this email. Please sign up or check your credentials!",
+      );
+    }
+
+    const isPasswordValid = await bcrypt.compare(
+      body.password,
+      foundUser.password,
+    );
+
+    if (!isPasswordValid) {
+      throw new Error(
+        "Incorrect password. Please try again or reset your password!",
+      );
+    }
+
+    const token = jwt.sign(
+      { id: foundUser._id },
+      process.env.JWT_SECRET || "",
+      {
+        expiresIn: 60 * 60 * 24 * 7,
+      },
+    );
+
+    res.cookie("authcookie", token, {
+      maxAge: 60 * 60 * 24 * 7,
+      httpOnly: true,
+    });
+
+    res.status(200).json({ message: "Logged in successfully!" });
   } catch (error) {
     if (error instanceof Error) {
-      res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: error.message });
     }
+
+    return res.status(500).json({ message: "Something went wrong!" });
   }
 }
