@@ -13,9 +13,9 @@ app.use(cors({ origin: "http://localhost:5173" }));
 app.use(express.json());
 app.use(cookieParser());
 
-app.use(authMiddleware);
-
 app.use("/api/auth", authRoutes);
+
+app.use(authMiddleware);
 
 app.listen(process.env.PORT, async () => {
   await connectDB();

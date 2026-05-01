@@ -42,7 +42,7 @@ export async function register(req: Request, res: Response) {
     }
 
     if (error instanceof Error) {
-      return res.status(409).json({ message: error.message });
+      return res.status(400).json({ message: error.message });
     }
 
     return res.status(500).json({ message: "Something went wrong!" });
@@ -72,10 +72,25 @@ export async function login(req: Request, res: Response) {
       );
     }
 
+    const token = jwt.sign(
+      { id: foundUser._id },
+      process.env.JWT_SECRET || "",
+      {
+        expiresIn: 60 * 60 * 24 * 7,
+      },
+    );
+
+    res.cookie("authcookie", token, {
+      maxAge: 60 * 60 * 24 * 7,
+      httpOnly: true,
+    });
+
     res.status(200).json({ message: "Logged in successfully!" });
   } catch (error) {
     if (error instanceof Error) {
-      res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: error.message });
     }
+
+    return res.status(500).json({ message: "Something went wrong!" });
   }
 }
