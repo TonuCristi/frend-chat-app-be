@@ -1,5 +1,9 @@
-import z from "zod";
+export type User = {
+  _id: string;
+  username: string;
+  email: string;
+  password: string;
+  createdAt: Date;
+};
 
-import { registerSchema } from "../schemas/register.schema.js";
-
-export type User = z.infer<typeof registerSchema>;
+export type UserWithoutPassword = Omit<User, "password">;

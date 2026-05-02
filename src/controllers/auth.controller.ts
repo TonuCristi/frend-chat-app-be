@@ -4,8 +4,9 @@ import { parseAsync, ZodError } from "zod";
 import jwt from "jsonwebtoken";
 import "dotenv/config";
 
-import { User } from "../models/user.model.js";
+import { UserModel } from "../models/user.model.js";
 import { registerSchema } from "../schemas/register.schema.js";
+import { User, UserWithoutPassword } from "../types/user.type.js";
 
 export async function register(req: Request, res: Response) {
   const body = req.body;
@@ -13,7 +14,7 @@ export async function register(req: Request, res: Response) {
   try {
     await registerSchema.parseAsync(body);
 
-    const foundUser = await User.findOne({ email: body.email });
+    const foundUser = await UserModel.findOne({ email: body.email });
 
     if (foundUser) {
       throw new Error(
@@ -25,15 +26,16 @@ export async function register(req: Request, res: Response) {
 
     const hash = await bcrypt.hash(body.password, salt);
 
-    const newUser = await User.create({ ...body, password: hash });
+    const newUser = await UserModel.create({ ...body, password: hash });
 
     const token = jwt.sign({ id: newUser.id }, process.env.JWT_SECRET || "", {
-      expiresIn: 60 * 60 * 24 * 7,
+      expiresIn: 1000 * 60 * 60 * 24 * 7,
     });
 
-    res.cookie("authcookie", token, {
-      maxAge: 60 * 60 * 24 * 7,
+    res.cookie("token", token, {
       httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 1000 * 60 * 60 * 24 * 7,
     });
     res.status(201).json({ message: "Account created successfully!" });
   } catch (error) {
@@ -53,7 +55,9 @@ export async function login(req: Request, res: Response) {
   const body = req.body;
 
   try {
-    const foundUser = await User.findOne({ email: body.email }).lean();
+    const foundUser = await UserModel.findOne({
+      email: body.email,
+    }).lean<User>();
 
     if (!foundUser) {
       throw new Error(
@@ -76,19 +80,85 @@ export async function login(req: Request, res: Response) {
       { id: foundUser._id },
       process.env.JWT_SECRET || "",
       {
-        expiresIn: 60 * 60 * 24 * 7,
+        expiresIn: 1000 * 60 * 60 * 24 * 7,
       },
     );
 
-    res.cookie("authcookie", token, {
-      maxAge: 60 * 60 * 24 * 7,
+    res.cookie("token", token, {
       httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 1000 * 60 * 60 * 24 * 7,
     });
 
     res.status(200).json({ message: "Logged in successfully!" });
   } catch (error) {
     if (error instanceof Error) {
       return res.status(500).json({ message: error.message });
+    }
+
+    return res.status(500).json({ message: "Something went wrong!" });
+  }
+}
+
+export async function logout(req: Request, res: Response) {
+  const token = req.cookies.token;
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "") as {
+      id: string;
+    };
+
+    const foundUser = await UserModel.findById(decoded.id);
+
+    if (!foundUser) {
+      throw new Error("No account found!");
+    }
+
+    res.clearCookie("token", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+    });
+
+    res.status(200).json({ message: "Logged in successfully!" });
+  } catch (error) {
+    if (error instanceof Error) {
+      return res.status(500).json({ message: error.message });
+    }
+
+    return res.status(500).json({ message: "Something went wrong!" });
+  }
+}
+
+export async function getLoggedUser(req: Request, res: Response) {
+  const token = req.cookies.token;
+
+  try {
+    if (!token) {
+      throw new Error("Not authenticated!");
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "") as {
+      id: string;
+    };
+
+    const foundUser = await UserModel.findById(decoded.id)
+      .lean<UserWithoutPassword>()
+      .select("-password -updatedAt -__v");
+
+    if (!foundUser) {
+      throw new Error("No account found!");
+    }
+
+    res.status(200).json({
+      id: foundUser._id,
+      username: foundUser.username,
+      email: foundUser.email,
+      createdAt: foundUser.createdAt,
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      return res.status(400).json({ message: error.message });
     }
 
     return res.status(500).json({ message: "Something went wrong!" });
