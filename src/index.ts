@@ -9,7 +9,15 @@ import authMiddleware from "./middlewares/auth.middleware.js";
 
 const app = express();
 
-app.use(cors({ origin: "http://localhost:5173" }));
+app.use(
+  cors({
+    origin:
+      process.env.NODE_ENV === "production"
+        ? process.env.API_BASE_URL_PROD
+        : process.env.API_BASE_URL_DEV,
+    credentials: true,
+  }),
+);
 app.use(express.json());
 app.use(cookieParser());
 
@@ -21,6 +29,6 @@ app.listen(process.env.PORT, async () => {
   await connectDB();
 
   console.log(
-    `-------------------------------------\nApp running on port ${process.env.PORT}\n-------------------------------------`,
+    `-------------------------------------\nApp running\n-------------------------------------`,
   );
 });
