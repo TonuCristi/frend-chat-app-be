@@ -35,7 +35,7 @@ export async function register(req: Request, res: Response) {
     res.cookie("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "none",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       maxAge: 1000 * 60 * 60 * 24 * 7,
     });
     res.status(201).json({ message: "Account created successfully!" });
@@ -88,7 +88,7 @@ export async function login(req: Request, res: Response) {
     res.cookie("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "none",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       maxAge: 1000 * 60 * 60 * 24 * 7,
     });
 
@@ -119,10 +119,10 @@ export async function logout(req: Request, res: Response) {
     res.clearCookie("token", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "none",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     });
 
-    res.status(200).json({ message: "Logged in successfully!" });
+    res.status(200).json({ message: "Logged out successfully!" });
   } catch (error) {
     if (error instanceof Error) {
       return res.status(500).json({ message: error.message });
@@ -136,8 +136,6 @@ export async function getLoggedUser(req: Request, res: Response) {
   const token = req.cookies.token;
 
   try {
-    console.log(token);
-
     if (!token) {
       throw new Error("Not authenticated!");
     }
