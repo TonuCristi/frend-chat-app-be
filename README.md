@@ -46,5 +46,5 @@ This project is currently in active development.
 
 ## 🔗 Links
 
-- [Backend](https://github.com/TonuCristi/frend-chat-app-be)
+- [Frontend](https://github.com/TonuCristi/frend-chat-app-fe)
 - [GitHub Profile](https://github.com/TonuCristi)
