@@ -25,10 +25,12 @@ app.use("/api/auth", authRoutes);
 
 app.use(authMiddleware);
 
-app.listen(process.env.PORT, async () => {
-  await connectDB();
+app.listen(
+  process.env.PORT ? Number(process.env.PORT) : 8000,
+  "0.0.0.0",
+  async () => {
+    await connectDB();
 
-  console.log(
-    `-------------------------------------\nApp running\n-------------------------------------`,
-  );
-});
+    console.log("App running");
+  },
+);
