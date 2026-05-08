@@ -48,7 +48,7 @@ export async function register(req: Request, res: Response) {
       return res.status(400).json({ message: error.message });
     }
 
-    return res.status(500).json({ message: "Something went wrong!" });
+    res.status(500).json({ message: "Something went wrong!" });
   }
 }
 
@@ -95,10 +95,10 @@ export async function login(req: Request, res: Response) {
     res.status(200).json({ message: "Logged in successfully!" });
   } catch (error) {
     if (error instanceof Error) {
-      return res.status(500).json({ message: error.message });
+      return res.status(400).json({ message: error.message });
     }
 
-    return res.status(500).json({ message: "Something went wrong!" });
+    res.status(500).json({ message: "Something went wrong!" });
   }
 }
 
@@ -125,10 +125,10 @@ export async function logout(req: Request, res: Response) {
     res.status(200).json({ message: "Logged out successfully!" });
   } catch (error) {
     if (error instanceof Error) {
-      return res.status(500).json({ message: error.message });
+      return res.status(400).json({ message: error.message });
     }
 
-    return res.status(500).json({ message: "Something went wrong!" });
+    res.status(500).json({ message: "Something went wrong!" });
   }
 }
 
@@ -163,6 +163,6 @@ export async function getLoggedUser(req: Request, res: Response) {
       return res.status(400).json({ message: error.message });
     }
 
-    return res.status(500).json({ message: "Something went wrong!" });
+    res.status(500).json({ message: "Something went wrong!" });
   }
 }
