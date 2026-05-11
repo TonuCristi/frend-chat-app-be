@@ -10,3 +10,11 @@ export type Chat = {
   createdBy: string;
   createdAt: Date;
 };
+
+export type ChatMember = {
+  _id: string;
+  memberId: string;
+  chatId: string;
+  role: string;
+  createdAt: Date;
+};
