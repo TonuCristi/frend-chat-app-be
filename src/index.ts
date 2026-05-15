@@ -1,21 +1,21 @@
 import express from "express";
 import cookieParser from "cookie-parser";
 import cors from "cors";
-import "dotenv/config";
 
 import authRoute from "./routes/auth.route.js";
 import chatsRoute from "./routes/chats.route.js";
 import connectDB from "./config/connectDB.js";
 import authMiddleware from "./middlewares/auth.middleware.js";
+import config from "./config/config.js";
 
 const app = express();
 
 app.use(
   cors({
     origin:
-      process.env.NODE_ENV === "production"
-        ? process.env.API_BASE_URL_PROD
-        : process.env.API_BASE_URL_DEV,
+      config.nodeEnv === "production"
+        ? config.apiBaseUrlProd
+        : config.apiBaseUrlDev,
     credentials: true,
   }),
 );
@@ -28,12 +28,8 @@ app.use(authMiddleware);
 
 app.use("/api/chats", chatsRoute);
 
-app.listen(
-  process.env.PORT ? Number(process.env.PORT) : 8000,
-  "0.0.0.0",
-  async () => {
-    await connectDB();
+app.listen(config.port, "0.0.0.0", async () => {
+  await connectDB();
 
-    console.log("App running");
-  },
-);
+  console.log("App running");
+});

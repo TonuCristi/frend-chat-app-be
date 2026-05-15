@@ -1,12 +1,14 @@
 import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import { parseAsync, ZodError } from "zod";
-import jwt from "jsonwebtoken";
 import "dotenv/config";
 
 import { UserModel } from "../models/user.model.js";
 import { registerSchema } from "../schemas/register.schema.js";
 import { User, UserWithoutPassword } from "../types/user.type.js";
+import config from "../config/config.js";
+import { verifyToken } from "../utils/verifyToken.js";
+import { createToken } from "../utils/createToken.js";
 
 export async function register(req: Request, res: Response) {
   const body = req.body;
@@ -28,14 +30,12 @@ export async function register(req: Request, res: Response) {
 
     const newUser = await UserModel.create({ ...body, password: hash });
 
-    const token = jwt.sign({ id: newUser.id }, process.env.JWT_SECRET || "", {
-      expiresIn: 1000 * 60 * 60 * 24 * 7,
-    });
+    const token = createToken(newUser.id);
 
     res.cookie("token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      secure: config.nodeEnv === "production",
+      sameSite: config.nodeEnv === "production" ? "none" : "lax",
       maxAge: 1000 * 60 * 60 * 24 * 7,
     });
     res.status(201).json({ message: "Account created successfully!" });
@@ -77,18 +77,12 @@ export async function login(req: Request, res: Response) {
       );
     }
 
-    const token = jwt.sign(
-      { id: foundUser._id },
-      process.env.JWT_SECRET || "",
-      {
-        expiresIn: 1000 * 60 * 60 * 24 * 7,
-      },
-    );
+    const token = createToken(foundUser._id);
 
     res.cookie("token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      secure: config.nodeEnv === "production",
+      sameSite: config.nodeEnv === "production" ? "none" : "lax",
       maxAge: 1000 * 60 * 60 * 24 * 7,
     });
 
@@ -106,11 +100,11 @@ export async function logout(req: Request, res: Response) {
   const token = req.cookies.token;
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || "") as {
-      id: string;
-    };
+    const decoded = verifyToken(token);
 
-    const foundUser = await UserModel.findById(decoded.id);
+    const userId = decoded.id;
+
+    const foundUser = await UserModel.findById(userId);
 
     if (!foundUser) {
       throw new Error("No account found!");
@@ -118,8 +112,8 @@ export async function logout(req: Request, res: Response) {
 
     res.clearCookie("token", {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      secure: config.nodeEnv === "production",
+      sameSite: config.nodeEnv === "production" ? "none" : "lax",
     });
 
     res.status(200).json({ message: "Logged out successfully!" });
@@ -140,11 +134,11 @@ export async function getLoggedUser(req: Request, res: Response) {
       throw new Error("Not authenticated!");
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || "") as {
-      id: string;
-    };
+    const decoded = verifyToken(token);
 
-    const foundUser = await UserModel.findById(decoded.id)
+    const userId = decoded.id;
+
+    const foundUser = await UserModel.findById(userId)
       .lean<UserWithoutPassword>()
       .select("-password -updatedAt -__v");
 

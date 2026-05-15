@@ -1,6 +1,6 @@
 import { Schema, model } from "mongoose";
 
-const chatMemberSchema = new Schema(
+const chatMembershipSchema = new Schema(
   {
     memberId: {
       type: Schema.Types.ObjectId,
@@ -21,4 +21,7 @@ const chatMemberSchema = new Schema(
   { timestamps: true },
 );
 
-export const ChatMemberModel = model("ChatMember", chatMemberSchema);
+export const ChatMembershipModel = model(
+  "ChatMembership",
+  chatMembershipSchema,
+);
