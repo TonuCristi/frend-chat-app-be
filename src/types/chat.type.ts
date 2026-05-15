@@ -11,7 +11,7 @@ export type Chat = {
   createdAt: Date;
 };
 
-export type ChatMember = {
+export type ChatMembership = {
   _id: string;
   memberId: string;
   chatId: string;

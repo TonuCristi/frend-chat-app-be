@@ -1,14 +1,14 @@
 import { Request, Response } from "express";
-import { Types } from "mongoose";
 import { parseAsync, ZodError } from "zod";
-import jwt from "jsonwebtoken";
 
 import { ChatModel } from "../models/chat.model.js";
 import { chatSchema } from "../schemas/chat.schema.js";
-import { ChatType } from "../types/chat.type.js";
-import { ChatMemberModel } from "../models/chatMember.model.js";
+import { Chat, ChatMembership, ChatType } from "../types/chat.type.js";
+import { ChatMembershipModel } from "../models/chatMembership.model.js";
 import { UserModel } from "../models/user.model.js";
 import { User } from "../types/user.type.js";
+import { verifyToken } from "../utils/verifyToken.js";
+import { QueryOptions } from "mongoose";
 
 export async function createChat(req: Request, res: Response) {
   const body = req.body;
@@ -16,17 +16,11 @@ export async function createChat(req: Request, res: Response) {
   try {
     await chatSchema.parseAsync(body);
 
-    if (
-      body.type === ChatType.Group &&
-      !(body.createdBy && Types.ObjectId.isValid(body.createdBy))
-    ) {
-      throw new Error("Invalid createdBy id!");
-    }
+    const token = req.cookies.token;
 
-    const name = body.type === ChatType.Group && body.name ? body.name : null;
+    const decoded = verifyToken(token);
 
-    const createdBy =
-      body.type === ChatType.Group && body.createdBy ? body.createdBy : null;
+    const userId = decoded.id;
 
     if (body.type === ChatType.Direct) {
       const foundUser = await UserModel.findOne({
@@ -39,24 +33,14 @@ export async function createChat(req: Request, res: Response) {
 
       const createdChat = await ChatModel.create({
         type: body.type,
-        name,
-        createdBy,
       });
 
-      const foundRecipientChatMember = await ChatMemberModel.findOne({
+      const foundRecipientChatMember = await ChatMembershipModel.findOne({
         memberId: foundUser._id,
-        // chatId: createdChat._id,
       });
 
-      const token = req.cookies.token;
-
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || "") as {
-        id: string;
-      };
-
-      const foundSenderChatMember = await ChatMemberModel.findOne({
-        memberId: decoded.id,
-        // chatId: createdChat._id,
+      const foundSenderChatMember = await ChatMembershipModel.findOne({
+        memberId: userId,
       });
 
       if (
@@ -69,22 +53,27 @@ export async function createChat(req: Request, res: Response) {
         throw new Error("Direct chat already exists!");
       }
 
-      await ChatMemberModel.create({
+      await ChatMembershipModel.create({
         memberId: foundUser._id,
         chatId: createdChat._id,
       });
 
-      await ChatMemberModel.create({
-        memberId: decoded.id,
+      await ChatMembershipModel.create({
+        memberId: userId,
         chatId: createdChat._id,
       });
     }
 
     if (body.type === ChatType.Group) {
-      await ChatModel.create({
+      const createdChat = await ChatModel.create({
         type: body.type,
-        name,
-        createdBy,
+        name: body.name,
+        createdBy: userId,
+      });
+
+      await ChatMembershipModel.create({
+        memberId: userId,
+        chatId: createdChat._id,
       });
     }
 
@@ -94,6 +83,97 @@ export async function createChat(req: Request, res: Response) {
       return res.status(400).json({ message: error.issues[0].message });
     }
 
+    if (error instanceof Error) {
+      return res.status(400).json({ message: error.message });
+    }
+
+    res.status(500).json({ message: "Something went wrong!" });
+  }
+}
+
+export async function getChats(req: Request, res: Response) {
+  const queryParams = req.query;
+
+  try {
+    const token = req.cookies.token;
+
+    const decoded = verifyToken(token);
+
+    const userId = decoded.id;
+
+    const foundMemberships = await ChatMembershipModel.find({
+      memberId: userId,
+    })
+      .select("-_id chatId")
+      .lean<ChatMembership[]>();
+
+    const chatIds = foundMemberships.map((m) => m.chatId);
+
+    const page = Number(queryParams.page);
+    const perPage = Number(queryParams.perPage);
+    const type =
+      queryParams.type === ChatType.Direct ||
+      queryParams.type === ChatType.Group
+        ? queryParams.type
+        : undefined;
+
+    const foundChats = await ChatModel.find({
+      _id: { $in: chatIds },
+      ...(type ? { type } : {}),
+    })
+      .skip(page * perPage)
+      .limit(perPage)
+      .select("-__v -updatedAt")
+      .lean<Chat[]>();
+
+    const chats = [];
+
+    for (let i = 0; i < foundChats.length; i++) {
+      const chat = foundChats[i];
+
+      if (chat.type === ChatType.Group) {
+        const { _id, ...restChat } = chat;
+
+        chats.push({ id: _id, ...restChat });
+      }
+
+      if (chat.type === ChatType.Direct) {
+        const foundMembership = await ChatMembershipModel.findOne({
+          chatId: chat._id,
+          memberId: { $ne: userId },
+        })
+          .select("-__v -updatedAt")
+          .lean<ChatMembership>();
+
+        if (!foundMembership) continue;
+
+        const foundUser = await UserModel.findById(foundMembership.memberId)
+          .select("-_id username")
+          .lean<User>();
+
+        if (!foundUser) continue;
+
+        const {
+          _id: foundMembershipId,
+          memberId,
+          ...restFoundMembership
+        } = foundMembership;
+
+        const foundMember = {
+          id: memberId,
+          membershipId: foundMembershipId,
+          ...restFoundMembership,
+          ...foundUser,
+        };
+
+        const { _id: chatId, ...restChat } = chat;
+
+        chats.push({ id: chatId, ...restChat, recipient: foundMember });
+      }
+    }
+
+    res.status(201).json({ chats });
+  } catch (error) {
     if (error instanceof Error) {
       return res.status(400).json({ message: error.message });
     }
